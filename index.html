@@ -1,0 +1,222 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css?family=Open+Sans" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css?family=Ubuntu+Mono" rel="stylesheet">
+<style>
+html, body {
+	font-family: 'Open Sans', sans-serif;
+	margin: 0;
+	padding: 0;
+	position: fixed;
+	top: 0;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	background-color: #99997F;
+}
+
+#content {
+	position: fixed;
+	top: 10%;
+	bottom: 5%;
+	left: 10%;
+	right: 5%;
+	background-color: #D9D9D9;
+	overflow: auto;
+	padding: 20px;
+	border: 5px inset #909070;
+}
+
+.pre {
+	font-family: 'Ubuntu Mono', monospace;
+	white-space: pre;
+}
+.code {
+	background-color: #FFFFCA;
+	padding: 10px;
+}
+a {
+	color: inherit;
+	text-decoration: none;
+	border-bottom: 1px solid #0000FF;
+}
+.token   { color: #7D612A; }
+.type    { color: #4F7132; }
+.const   { color: #E12D2D; }
+.this    { color: #8B549B; }
+.comment { color: #40454E; }
+.keyword .token { color: #3D6E96; } /* token is old name used in SatCom */
+.string  { color: #3D6257; }
+.key { background-color: rgba(0.75, 0.75, 0.75, 0.5); }
+</style>
+<script src="http://code.jquery.com/jquery-1.11.3.min.js"></script>
+<script>
+var BASEPATH = "/SatComOnline";
+var BRANCH = "dev"; // TODO: add a switcher
+
+function checkLineType(line)
+{
+	if (line.match(/^\s*$/) || line.match(/^\\[nctr];$/)) return 'whitespace';
+	if (line.match(/^\\[bt];/)) return 'header';
+	if (line.match(/^\s*([0-9]\)|[o-])/)) return 'bullet';
+	if (line.match(/^\\image.*;$/)) return 'image';
+	if (line.match(/^\\s;/) || line.match(/^\\c;\\s;/)) return 'code';
+	return 'plain';
+}
+
+function parseParagraphs(content)
+{
+	content = content.split("\n");
+	var paragraphs = [];
+	var currentType = null;
+	var currentParagraph = "";
+	for (var i = 0; i < content.length; i++) {
+		var type = checkLineType(content[i]);
+		if ((type != currentType && currentType != null) || ['whitespace', 'header', 'bullet', 'image'].indexOf(currentType) !== -1) {
+			paragraphs.push({
+				type: currentType,
+				content: currentParagraph.substr(0, currentParagraph.length-1) // get rid of last \n
+			});
+			currentParagraph = "";
+		}
+		currentParagraph += content[i]+"\n";
+		currentType = type;
+	}
+	if(currentParagraph) {
+		paragraphs.push({
+			type: currentType,
+			content: currentParagraph.substr(0, currentParagraph.length-1) // get rid of last \n
+		});
+	}
+	return paragraphs;
+}
+
+function translate(s)
+{
+	return s; // TODO
+}
+
+function loadFile(category, filename)
+{
+	$.get("https://rawgit.com/colobot/colobot-data/"+BRANCH+"/help/"+category+"/E/"+filename).done(function(content) {
+		var paragraphs = parseParagraphs(content);
+		
+		var title = "SatCom Online";
+		for(var i = 0; i < paragraphs.length; i++) {
+			var paragraph = paragraphs[i];
+			if (paragraph.type == 'header') {
+				var match = paragraph.content.match(/^(\\[bt];)(.*)/);
+				title = match[2]+" • "+title;
+				break;
+			}
+		}
+		document.title = title;
+		
+		var out = "";
+		var lastType = null;
+		var listOpen = null;
+		var preloadImages = [];
+		for(var i = 0; i < paragraphs.length; i++) {
+			var paragraph = paragraphs[i];
+			
+			if (paragraph.type == 'whitespace') continue;
+			if (paragraph.type != 'bullet' && listOpen) {
+				out += "</"+listOpen+">\n";
+				listOpen = null;
+			}
+			
+			paragraph.content = paragraph.content.replace(/\\l;(.*?)\\u (.*?);/g, function(match, name, target) { return "<a href=\"javascript:goto('"+target.replace(/\\/g, "/")+"');\">"+name+"</a>"});
+			if (paragraph.type != 'code') paragraph.content = paragraph.content.replace(/\\c;([\s\S]*?)\\n;/g, "<span class=\"pre\">$1</span>");
+			paragraph.content = paragraph.content.replace(/\\(const|type|token|key);(.*?)\\norm;/g, "<span class=\"$1\">$2</span>");
+			
+			if (paragraph.type == 'header') {
+				var match = paragraph.content.match(/^(\\[bt];)(.*)/);
+				if (match[1] == "\\b;") out += "<h1>"+match[2]+"</h1>\n";
+				if (match[1] == "\\t;") out += "<h3>"+match[2]+"</h3>\n";
+			}
+			if (paragraph.type == 'bullet') {
+				var match = paragraph.content.match(/^(\s*)([0-9]\)|[o-])(\s*)(.*)/);
+				if (!listOpen) {
+					listOpen = match[2].indexOf("o") !== -1 ? "ul" : "ol";
+					out += "<"+listOpen+">\n";
+				}
+				out += "<li>"+translate(match[4])+"</li>\n";
+			}
+			if (paragraph.type == 'plain') {
+				out += "<p>"+translate(paragraph.content).replace(/\n/g, "<br>\n")+"</p>\n";
+			}
+			if (paragraph.type == 'code') {
+				paragraph.content = paragraph.content.replace(/\\[csn];/g, ""); // this formatting syntax is a mess
+				out += "<div class=\"pre code\">"+translate(paragraph.content)+"</div>"; // TODO: syntax highlighting
+			}
+			if (paragraph.type == 'image') {
+				var match = paragraph.content.match(/^(\\image )(.*)( \d* \d*;)$/);
+				var imageUrl = "https://github.com/colobot/colobot-data/raw/"+BRANCH+"/icons/"+match[2]+".png";
+				preloadImages.push(imageUrl);
+				out += "<img src=\""+imageUrl+"\">\n";
+			}
+			
+			lastType = paragraph.type;
+		}
+		
+		(function(images, onload) {
+			if (images.length == 0) {
+				onload();
+				return;
+			}
+			var loaded = 0;
+			for(var i = 0; i < images.length; i++) {
+				var img = new Image();
+				img.onload = img.onerror = img.onabort = function() {
+					loaded++;
+					if (loaded >= images.length) onload();
+				}
+				img.src = images[i];
+			}
+		})(preloadImages, function() {
+			$("#content").html(out);
+		});
+	});
+}
+
+function loadPath(url) {
+	var category, file;
+	var match = url.match(/(.*)\/(.*)/);
+	if (match) {
+		category = match[1];
+		file = match[2]+".txt";
+	} else {
+		category = "generic";
+		file = url+".txt";
+	}
+	loadFile(category, file);
+}
+
+function goto(url) {
+	loadPath(url);
+	window.history.pushState(null, null, BASEPATH+"/"+url);
+}
+
+function getPath() {
+	return document.location.pathname.replace(BASEPATH, "").substr(1);
+}
+
+var path = getPath();
+if (path.length > 0) {
+	loadPath(path);
+} else {
+	loadPath("cbot");
+	window.history.replaceState(null, null, BASEPATH+"/cbot");
+}
+
+window.onpopstate = function(event) {
+	loadPath(getPath());
+};
+</script>
+</head>
+<body>
+	<div id="content">Hey, this is SatCom in a WEB BROWSER!</div></td>
+</body>
+</html>
