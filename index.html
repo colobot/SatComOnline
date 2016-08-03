@@ -2,6 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
+<meta content='user-scalable=0' name='viewport' />
 <link href="https://fonts.googleapis.com/css?family=Open+Sans" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css?family=Ubuntu+Mono" rel="stylesheet">
 <style>
@@ -29,6 +30,11 @@ html, body {
 	border: 5px inset #909070;
 }
 
+h1 {
+	margin-top: 0;
+}
+h3 {
+}
 .pre {
 	font-family: 'Ubuntu Mono', monospace;
 	white-space: pre;
@@ -130,6 +136,19 @@ function loadFile(category, filename)
 			paragraph.content = paragraph.content.replace(/\\l;(.*?)\\u (.*?);/g, function(match, name, target) { return "<a href=\"javascript:goto('"+target.replace(/\\/g, "/")+"');\">"+name+"</a>"});
 			if (paragraph.type != 'code') paragraph.content = paragraph.content.replace(/\\c;([\s\S]*?)\\n;/g, "<span class=\"pre\">$1</span>");
 			paragraph.content = paragraph.content.replace(/\\(const|type|token|key);(.*?)\\norm;/g, "<span class=\"$1\">$2</span>");
+			paragraph.content = paragraph.content.replace(/\\button (.*?);/g, function(match, number) {
+				number = parseInt(number);
+				var fileid = Math.floor(number/64)+1;
+				var iconid = number%64;
+				
+				var fileurl = "https://raw.githubusercontent.com/colobot/colobot-data/"+BRANCH+"/textures/interface/button"+fileid+".png";
+				var w = iconid%8;
+				var h = Math.floor(iconid/8);
+				
+				if(preloadImages.indexOf(fileurl) === -1) preloadImages.push(fileurl);
+				
+				return "<span style=\"width: 1em; height: 1em; background: url("+fileurl+") "+(-w)+"em "+(-h)+"em; background-size: 8em 8em; display: inline-block; vertical-align: text-top;\"></span>";
+			});
 			
 			if (paragraph.type == 'header') {
 				var match = paragraph.content.match(/^(\\[bt];)(.*)/);
@@ -153,7 +172,7 @@ function loadFile(category, filename)
 			}
 			if (paragraph.type == 'image') {
 				var match = paragraph.content.match(/^(\\image )(.*)( \d* \d*;)$/);
-				var imageUrl = "https://github.com/colobot/colobot-data/raw/"+BRANCH+"/icons/"+match[2]+".png";
+				var imageUrl = "https://raw.githubusercontent.com/colobot/colobot-data/"+BRANCH+"/icons/"+match[2]+".png";
 				preloadImages.push(imageUrl);
 				out += "<img src=\""+imageUrl+"\">\n";
 			}
