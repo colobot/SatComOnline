@@ -113,8 +113,7 @@ function loadFile(category, filename)
 		for(var i = 0; i < paragraphs.length; i++) {
 			var paragraph = paragraphs[i];
 			if (paragraph.type == 'header') {
-				var match = paragraph.content.match(/^(\\[bt];)(.*)/);
-				title = match[2]+" • "+title;
+				title = paragraph.content.replace(/\\[btcn];|\\button [0-9]*;/g, "")+" • "+title;
 				break;
 			}
 		}
