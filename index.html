@@ -15,20 +15,43 @@ html, body {
 	bottom: 0;
 	left: 0;
 	right: 0;
-	background-color: #99997F;
+	background-color: #9F9A7F;
 }
 
 #content {
 	position: fixed;
-	top: 10%;
-	bottom: 5%;
-	left: 10%;
-	right: 5%;
+	top: 75px;
+	bottom: 25px;
+	left: 25px;
+	right: 25px;
 	background-color: #D9D9D9;
 	overflow: auto;
 	padding: 20px;
-	border: 5px inset #909070;
+	border: 5px inset #A18A66;
 }
+
+#navig {
+	position: fixed;
+	top: 12.5px;
+	left: 25px;
+	height: 50px;
+}
+#back, #next, #home {
+	width: 50px;
+	height: 50px;
+	background: url(https://raw.githubusercontent.com/colobot/colobot-data/dev/textures/interface/button1.png);
+	background-size: 400px 400px;
+}
+#back {
+	background-position: -350px -300px;
+}
+#next {
+	background-position: 0px -300px;
+}
+#home {
+	background-position: -300px -150px;
+}
+
 
 h1 {
 	margin-top: 0;
@@ -61,7 +84,7 @@ a {
 <script>
 var BASEPATH = "/SatComOnline";
 var BRANCH = "dev"; // TODO: add a switcher
-var LANG = "pl";
+localStorage.lang = localStorage.lang || "en";
 
 function checkLineType(line)
 {
@@ -268,7 +291,6 @@ function processFile(content, translationMap)
 			
 			return "<span style=\"width: 1em; height: 1em; background: url("+fileurl+") "+(-w)+"em "+(-h)+"em; background-size: 8em 8em; display: inline-block; vertical-align: text-top;\"></span>";
 		});
-		console.log(line);
 		line = line.replace(/<key (.*?)\/>/g, "$1"); // TODO: Maybe keep a list of default keybindings?
 		
 		// TODO: we don't handle the legacy state machine stuff, hopefully not much of those is left. In the worst case we lose some formatting.
@@ -302,10 +324,10 @@ function processFile(content, translationMap)
 function loadFile(category, filename)
 {
 	$.get("https://rawgit.com/colobot/colobot-data/"+BRANCH+"/help/"+category+"/E/"+filename).done(function(content) {
-				if (LANG == "en") {
+				if (localStorage.lang == "en") {
 						processFile(content, []);
 				} else {
-						$.get("https://rawgit.com/colobot/colobot-data/"+BRANCH+"/help/"+category+"/po/"+LANG+".po", { format: 'po', mode: 'ajax' }).done(function(transContent) {
+						$.get("https://rawgit.com/colobot/colobot-data/"+BRANCH+"/help/"+category+"/po/"+localStorage.lang+".po", { format: 'po', mode: 'ajax' }).done(function(transContent) {
 								processFile(content, processTranslations(transContent));
 					});
 			}
@@ -334,20 +356,41 @@ function getPath() {
 	return document.location.pathname.replace(BASEPATH, "").substr(1);
 }
 
-var path = getPath();
-if (path.length > 0) {
-	loadPath(path);
-} else {
-	loadPath("cbot");
-	window.history.replaceState(null, null, BASEPATH+"/cbot");
-}
-
 window.onpopstate = function(event) {
 	loadPath(getPath());
 };
+
+function changeLang(newlang) {
+	localStorage.lang = newlang;
+	loadPath(getPath());
+}
+
+$(document).ready(function() {
+	var path = getPath();
+	if (path.length > 0) {
+		loadPath(path);
+	} else {
+		loadPath("cbot");
+		window.history.replaceState(null, null, BASEPATH+"/cbot");
+	}
+
+	$("#language").val(localStorage.lang);
+});
 </script>
 </head>
 <body>
+	<div id="navig">
+		<button id="back" onclick="window.history.go(-1);"></button>
+		<button id="next" onclick="window.history.go(1);"></button>
+		<button id="home" onclick="goto('cbot')"></button>
+		<select id="language" onchange="changeLang(document.getElementById('language').value);">
+			<option value="en">English</option>
+			<option value="pl">Polish</option>
+			<option value="fr">French</option>
+			<option value="de">German</option>
+			<option value="ru">Russian</option>
+		</select>
+	</div>
 	<div id="content">Hey, this is SatCom in a WEB BROWSER!</div></td>
 </body>
 </html>
