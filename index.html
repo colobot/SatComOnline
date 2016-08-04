@@ -388,7 +388,6 @@ $(document).ready(function() {
 		branches.forEach(function(branch) {
 			$("#branch").append("<option value=\""+branch+"\">"+branch+"</option>");
 		});
-		$("#branch").val(current_branch);
 	
 		var path = getPath();
 		if (path.length > 0) {
@@ -399,6 +398,7 @@ $(document).ready(function() {
 		}
 
 		$("#language").val(localStorage.lang);
+		$("#branch").val(current_branch);
 	});
 });
 </script>
