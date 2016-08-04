@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta content='user-scalable=0' name='viewport' />
-<link href="https://fonts.googleapis.com/css?family=Open+Sans" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css?family=Ubuntu" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css?family=Ubuntu+Mono" rel="stylesheet">
 <style>
 html, body {
-	font-family: 'Open Sans', sans-serif;
+	font-family: 'Ubuntu', sans-serif;
 	margin: 0;
 	padding: 0;
 	position: fixed;
@@ -55,12 +55,13 @@ a {
 .comment { color: #40454E; }
 .keyword .token { color: #3D6E96; } /* token is old name used in SatCom */
 .string  { color: #3D6257; }
-.key { background-color: rgba(0.75, 0.75, 0.75, 0.5); }
+.key     { background-color: #BFBFBF; }
 </style>
 <script src="http://code.jquery.com/jquery-1.11.3.min.js"></script>
 <script>
 var BASEPATH = "/SatComOnline";
 var BRANCH = "dev"; // TODO: add a switcher
+var LANG = "pl";
 
 function checkLineType(line)
 {
@@ -99,103 +100,215 @@ function parseParagraphs(content)
 	return paragraphs;
 }
 
-function translate(s)
+function processTranslations(content)
 {
-	return s; // TODO
+	// First, split it into "paragraphs", each one containing one gettext entry
+	var lines = content.split("\n");
+	var paragraphs = [];
+	var currentLines = [];
+	for (var i = 0; i < lines.length; i++) {
+		var line = lines[i];
+		if (line.match(/^#/)) continue; // TODO: detect fuzzy markers, ignore whole paragraph if found
+		if (line.match(/^\s*$/)) {
+			paragraphs.push(currentLines);
+			currentLines = [];
+		} else {
+			currentLines.push(line);
+		}
+	}
+	if (currentLines) {
+		paragraphs.push(currentLines);
+	}
+	
+	// Now, convert each paragraph into msgid -> msgstr mapping and store it in a map
+	// (note that we do not support many of the advanced gettext features,
+	// but we don't really need them for anything here)
+	var translationMap = [];
+	for (var i = 0; i < paragraphs.length; i++) {
+		var paragraph = paragraphs[i];
+		var lastLineType = null;
+		var data = [];
+		for (var j = 0; j < paragraph.length; j++) {
+			var line = paragraph[j];
+			var match = line.match(/^(msgid|msgstr) \"(.*)\"$/);
+			if (match) {
+				data[match[1]] = match[2];
+				lastLineType = match[1];
+			} else {
+				// This may be a multiline message
+				// Try to append to last known type
+				match = line.match(/^\"(.*)\"$/);
+				if (!match) {
+					console.error("Syntax error, no match for line", line);
+					continue;
+				}
+				
+				var matchline = match[1];
+				matchline = matchline.replace(/\\n/g, "\n");
+				matchline = matchline.replace(/\\"/g, "\"");
+				
+				if (!data[lastLineType]) {
+					data[lastLineType] = matchline;
+				} else {
+					data[lastLineType] += matchline;
+				}
+			}
+		}
+		if (data["msgid"] && data["msgstr"]) {
+			translationMap[data["msgid"]] = data["msgstr"];
+		} else {
+			// console.warn("No translation for ", data["msgid"]);
+		}
+	}
+	return translationMap;
+}
+
+// Convert file from Colobot syntax to the one used in .po files
+// (and later in HTML conversion, for simplicity)
+// See https://github.com/colobot/colobot-data/blob/master/README.i18n.md
+function convertLine(line)
+{
+	line = line.replace(/\\l;(.*?)\\u (.*?);/g, function(match, text, url) { return "<a "+url.replace("\\", "|")+">"+text+"</a>"; });
+	line = line.replace(/\\(button|key) (.*?);/g, "<$1 $2/>");
+	line = line.replace(/\\(const|type|token|key);(.*?)\\norm;/g, "<format $1>$2</format>");
+	line = line.replace(/\\c;([^\\;]*?)\\n;/g, "<code>$1</code>"); // TODO: Copying the same mistake again for compatibility - https://github.com/colobot/colobot/issues/810
+	
+	line = line.replace(/\\(const|type|token|norm|key);/g, "<format $1>"); // TODO: clean up this state machine thingy and remove from spec
+	line = line.replace(/\\([tscbn]);/g, "<$1/>"); // TODO: weird state machine again
+	
+	return line;
+}
+
+function processFile(content, translationMap)
+{
+	function translate(s)
+	{
+		if (translationMap[s]) return translationMap[s];
+		else console.warn("No translation for", s);
+		return s;
+	}
+
+	var paragraphs = parseParagraphs(content);
+	
+	var title = "SatCom Online";
+	for(var i = 0; i < paragraphs.length; i++) {
+		var paragraph = paragraphs[i];
+		if (paragraph.type == 'header') {
+			var data = convertLine(paragraph.content);
+			var match = data.match(/^<([bt])\/>(.*)/);
+			if (match[1] == "b") {
+				data = translate(match[2]);
+				data = data.replace(/<(.*?)>/g, "");
+				title = data+" • "+title;
+			}
+			break;
+		}
+	}
+	document.title = title;
+	
+	var out = "";
+	var lastType = null;
+	var listOpen = null;
+	var preloadImages = [];
+	for(var i = 0; i < paragraphs.length; i++) {
+		var paragraph = paragraphs[i];
+		
+		if (paragraph.type == 'whitespace') continue;
+		if (paragraph.type != 'bullet' && listOpen) {
+			out += "</"+listOpen+">\n";
+			listOpen = null;
+		}
+		
+		var data = convertLine(paragraph.content);
+		
+		var line = data;
+		
+		if (paragraph.type == 'header') {
+			var match = data.match(/^<([bt])\/>(.*)/);
+			if (match[1] == "b") line = "<h1>"+translate(match[2])+"</h1>\n";
+			if (match[1] == "t") line = "<h3>"+translate(match[2])+"</h3>\n";
+		}
+		if (paragraph.type == 'bullet') {
+			var match = data.match(/^(\s*)([0-9]\)|[o-])(\s*)(.*)/);
+			if (!listOpen) {
+				listOpen = match[2].indexOf("o") !== -1 ? "ul" : "ol";
+				out += "<"+listOpen+">\n";
+			}
+			line = "<li>"+translate(match[4])+"</li>\n";
+		}
+		if (paragraph.type == 'plain') {
+			line = "<p>"+translate(data).replace(/\n/g, "<br>\n")+"</p>\n";
+		}
+		if (paragraph.type == 'code') {
+			// Just assume <s/> for code always, because I'm lazy and I can't really simulate a state machine with regex
+			data = data.replace(/<s\/>/g, "");
+			line = "<div class=\"code pre\">"+translate(data)+"</div>"; // TODO: syntax highlighting
+		}
+		if (paragraph.type == 'image') {
+			var match = data.match(/^(\\image )(.*)( \d* \d*;)$/);
+			var imageUrl = "https://raw.githubusercontent.com/colobot/colobot-data/"+BRANCH+"/icons/"+match[2]+".png";
+			preloadImages.push(imageUrl);
+			line = "<img src=\""+imageUrl+"\">\n";
+		}
+		
+		line = line.replace(/<a (.*?)>(.*?)<\/a>/g, function(match, url, name) { return "<a href=\"javascript:goto('"+url.replace("|", "/")+"');\">"+name+"</a>"; });
+		line = line.replace(/<c\/>([\s\S]*?)<n\/>/g, "<span class=\"pre\">$1</span>");
+		line = line.replace(/<code>([\s\S]*?)<\/code>/g, "<span class=\"pre\">$1</span>");
+		line = line.replace(/<format (.*?)>(.*?)<\/format>/g, "<span class=\"$1\">$2</span>");
+		line = line.replace(/<button ([0-9]*?)\/>/g, function(match, number) {
+			number = parseInt(number);
+			var fileid = Math.floor(number/64)+1;
+			var iconid = number%64;
+			
+			var fileurl = "https://raw.githubusercontent.com/colobot/colobot-data/"+BRANCH+"/textures/interface/button"+fileid+".png";
+			var w = iconid%8;
+			var h = Math.floor(iconid/8);
+			
+			if(preloadImages.indexOf(fileurl) === -1) preloadImages.push(fileurl);
+			
+			return "<span style=\"width: 1em; height: 1em; background: url("+fileurl+") "+(-w)+"em "+(-h)+"em; background-size: 8em 8em; display: inline-block; vertical-align: text-top;\"></span>";
+		});
+		console.log(line);
+		line = line.replace(/<key (.*?)\/>/g, "$1"); // TODO: Maybe keep a list of default keybindings?
+		
+		// TODO: we don't handle the legacy state machine stuff, hopefully not much of those is left. In the worst case we lose some formatting.
+		line = line.replace(/<format (.*?)\/>/, "");
+		line = line.replace(/<[tscbn]\/>/, "");
+		
+		out += line;
+		
+		lastType = paragraph.type;
+	}
+	
+	(function(images, onload) {
+		if (images.length == 0) {
+			onload();
+			return;
+		}
+		var loaded = 0;
+		for(var i = 0; i < images.length; i++) {
+			var img = new Image();
+			img.onload = img.onerror = img.onabort = function() {
+				loaded++;
+				if (loaded >= images.length) onload();
+			}
+			img.src = images[i];
+		}
+	})(preloadImages, function() {
+		$("#content").html(out);
+	});
 }
 
 function loadFile(category, filename)
 {
 	$.get("https://rawgit.com/colobot/colobot-data/"+BRANCH+"/help/"+category+"/E/"+filename).done(function(content) {
-		var paragraphs = parseParagraphs(content);
-		
-		var title = "SatCom Online";
-		for(var i = 0; i < paragraphs.length; i++) {
-			var paragraph = paragraphs[i];
-			if (paragraph.type == 'header') {
-				title = paragraph.content.replace(/\\[btcn];|\\button [0-9]*;/g, "")+" • "+title;
-				break;
+				if (LANG == "en") {
+						processFile(content, []);
+				} else {
+						$.get("https://rawgit.com/colobot/colobot-data/"+BRANCH+"/help/"+category+"/po/"+LANG+".po", { format: 'po', mode: 'ajax' }).done(function(transContent) {
+								processFile(content, processTranslations(transContent));
+					});
 			}
-		}
-		document.title = title;
-		
-		var out = "";
-		var lastType = null;
-		var listOpen = null;
-		var preloadImages = [];
-		for(var i = 0; i < paragraphs.length; i++) {
-			var paragraph = paragraphs[i];
-			
-			if (paragraph.type == 'whitespace') continue;
-			if (paragraph.type != 'bullet' && listOpen) {
-				out += "</"+listOpen+">\n";
-				listOpen = null;
-			}
-			
-			paragraph.content = paragraph.content.replace(/\\l;(.*?)\\u (.*?);/g, function(match, name, target) { return "<a href=\"javascript:goto('"+target.replace(/\\/g, "/")+"');\">"+name+"</a>"});
-			if (paragraph.type != 'code') paragraph.content = paragraph.content.replace(/\\c;([\s\S]*?)\\n;/g, "<span class=\"pre\">$1</span>");
-			paragraph.content = paragraph.content.replace(/\\(const|type|token|key);(.*?)\\norm;/g, "<span class=\"$1\">$2</span>");
-			paragraph.content = paragraph.content.replace(/\\button (.*?);/g, function(match, number) {
-				number = parseInt(number);
-				var fileid = Math.floor(number/64)+1;
-				var iconid = number%64;
-				
-				var fileurl = "https://raw.githubusercontent.com/colobot/colobot-data/"+BRANCH+"/textures/interface/button"+fileid+".png";
-				var w = iconid%8;
-				var h = Math.floor(iconid/8);
-				
-				if(preloadImages.indexOf(fileurl) === -1) preloadImages.push(fileurl);
-				
-				return "<span style=\"width: 1em; height: 1em; background: url("+fileurl+") "+(-w)+"em "+(-h)+"em; background-size: 8em 8em; display: inline-block; vertical-align: text-top;\"></span>";
-			});
-			
-			if (paragraph.type == 'header') {
-				var match = paragraph.content.match(/^(\\[bt];)(.*)/);
-				if (match[1] == "\\b;") out += "<h1>"+match[2]+"</h1>\n";
-				if (match[1] == "\\t;") out += "<h3>"+match[2]+"</h3>\n";
-			}
-			if (paragraph.type == 'bullet') {
-				var match = paragraph.content.match(/^(\s*)([0-9]\)|[o-])(\s*)(.*)/);
-				if (!listOpen) {
-					listOpen = match[2].indexOf("o") !== -1 ? "ul" : "ol";
-					out += "<"+listOpen+">\n";
-				}
-				out += "<li>"+translate(match[4])+"</li>\n";
-			}
-			if (paragraph.type == 'plain') {
-				out += "<p>"+translate(paragraph.content).replace(/\n/g, "<br>\n")+"</p>\n";
-			}
-			if (paragraph.type == 'code') {
-				paragraph.content = paragraph.content.replace(/\\[csn];/g, ""); // this formatting syntax is a mess
-				out += "<div class=\"pre code\">"+translate(paragraph.content)+"</div>"; // TODO: syntax highlighting
-			}
-			if (paragraph.type == 'image') {
-				var match = paragraph.content.match(/^(\\image )(.*)( \d* \d*;)$/);
-				var imageUrl = "https://raw.githubusercontent.com/colobot/colobot-data/"+BRANCH+"/icons/"+match[2]+".png";
-				preloadImages.push(imageUrl);
-				out += "<img src=\""+imageUrl+"\">\n";
-			}
-			
-			lastType = paragraph.type;
-		}
-		
-		(function(images, onload) {
-			if (images.length == 0) {
-				onload();
-				return;
-			}
-			var loaded = 0;
-			for(var i = 0; i < images.length; i++) {
-				var img = new Image();
-				img.onload = img.onerror = img.onabort = function() {
-					loaded++;
-					if (loaded >= images.length) onload();
-				}
-				img.src = images[i];
-			}
-		})(preloadImages, function() {
-			$("#content").html(out);
-		});
 	});
 }
 
