@@ -84,7 +84,7 @@ a {
 <script>
 var BASEPATH = "/SatComOnline";
 var BRANCH = "dev"; // TODO: add a switcher
-localStorage.lang = localStorage.lang || "en";
+localStorage.lang = localStorage.lang || window.navigator.userLanguage || window.navigator.language || "en";
 
 function checkLineType(line)
 {
