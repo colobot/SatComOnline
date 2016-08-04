@@ -274,7 +274,7 @@ function processFile(content, translationMap)
 			line = "<img src=\""+imageUrl+"\">\n";
 		}
 		
-		line = line.replace(/<a (.*?)>(.*?)<\/a>/g, function(match, url, name) { return "<a href=\"javascript:goto('"+url.replace("|", "/")+"');\">"+name+"</a>"; });
+		line = line.replace(/<a (.*?)>(.*?)<\/a>/g, function(match, url, name) { return "<a href=\""+BASEPATH+"/"+url.replace("|", "/")+"\" onclick=\"goto('"+url.replace("|", "/")+"'); return false;\">"+name+"</a>"; });
 		line = line.replace(/<c\/>([\s\S]*?)<n\/>/g, "<span class=\"pre\">$1</span>");
 		line = line.replace(/<code>([\s\S]*?)<\/code>/g, "<span class=\"pre\">$1</span>");
 		line = line.replace(/<format (.*?)>(.*?)<\/format>/g, "<span class=\"$1\">$2</span>");
@@ -324,13 +324,13 @@ function processFile(content, translationMap)
 function loadFile(category, filename)
 {
 	$.get("https://rawgit.com/colobot/colobot-data/"+BRANCH+"/help/"+category+"/E/"+filename).done(function(content) {
-				if (localStorage.lang == "en") {
-						processFile(content, []);
-				} else {
-						$.get("https://rawgit.com/colobot/colobot-data/"+BRANCH+"/help/"+category+"/po/"+localStorage.lang+".po", { format: 'po', mode: 'ajax' }).done(function(transContent) {
-								processFile(content, processTranslations(transContent));
-					});
-			}
+		if (localStorage.lang == "en") {
+				processFile(content, []);
+		} else {
+			$.get("https://rawgit.com/colobot/colobot-data/"+BRANCH+"/help/"+category+"/po/"+localStorage.lang+".po").done(function(transContent) {
+				processFile(content, processTranslations(transContent));
+			});
+		}
 	});
 }
 
