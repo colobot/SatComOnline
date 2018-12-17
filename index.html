@@ -191,7 +191,7 @@ function processTranslations(content)
 // See https://github.com/colobot/colobot-data/blob/master/README.i18n.md
 function convertLine(line)
 {
-	line = line.replace(/\\l;(.*?)\\u (.*?);/g, function(match, text, url) { return "<a "+url.replace("\\", "|")+">"+text+"</a>"; });
+	line = line.replace(/\\l;(.*?)\\u (.*?);/g, function(match, text, url) { return "<a "+current_branch+"/"+url.replace("\\", "|")+">"+text+"</a>"; });
 	line = line.replace(/\\(button|key) (.*?);/g, "<$1 $2/>");
 	line = line.replace(/\\(const|type|token|key);(.*?)\\norm;/g, "<format $1>$2</format>");
 	line = line.replace(/\\c;([^\\;]*?)\\n;/g, "<code>$1</code>"); // TODO: Copying the same mistake again for compatibility - https://github.com/colobot/colobot/issues/810
@@ -346,12 +346,14 @@ function loadPath(url) {
 		category = "generic";
 		file = split[1]+".txt";
 	} else console.log("Unable to parse path", url);
-	loadFile(category, file);
+
+    if(url.includes("/bot")) category = "bots";
+    loadFile(category, file);
 }
 
 function goto(url) {
-	loadPath(current_branch+"/"+url);
-	window.history.pushState(null, null, BASEPATH+"/"+current_branch+"/"+url);
+	loadPath(url);
+	window.history.pushState(null, null, BASEPATH+"/"+url);
 }
 
 function getPath() {
