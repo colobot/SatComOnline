@@ -409,7 +409,7 @@ $(document).ready(function() {
 	<div id="navig">
 		<button id="back" onclick="window.history.go(-1);"></button>
 		<button id="next" onclick="window.history.go(1);"></button>
-		<button id="home" onclick="goto('cbot')"></button>
+		<button id="home" onclick="goto(current_branch+'/cbot')"></button>
 		<select id="language" onchange="changeLang(document.getElementById('language').value);">
 			<option value="en">English</option>
 			<option value="pl">Polish</option>
