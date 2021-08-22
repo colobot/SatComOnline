@@ -177,6 +177,7 @@ function processTranslations(content)
 				}
 			}
 		}
+
 		if (data["msgid"] && data["msgstr"]) {
 			translationMap[data["msgid"]] = data["msgstr"];
 		} else {
@@ -191,7 +192,7 @@ function processTranslations(content)
 // See https://github.com/colobot/colobot-data/blob/master/README.i18n.md
 function convertLine(line)
 {
-	line = line.replace(/\\l;(.*?)\\u (.*?);/g, function(match, text, url) { return "<a "+current_branch+"/"+url.replace("\\", "|")+">"+text+"</a>"; });
+	line = line.replace(/\\l;(.*?)\\u (.*?);/g, function(match, text, url) { return "<a "+url.replace("\\", "|")+">"+text+"</a>"; });
 	line = line.replace(/\\(button|key) (.*?);/g, "<$1 $2/>");
 	line = line.replace(/\\(const|type|token|key);(.*?)\\norm;/g, "<format $1>$2</format>");
 	line = line.replace(/\\c;([^\\;]*?)\\n;/g, "<code>$1</code>"); // TODO: Copying the same mistake again for compatibility - https://github.com/colobot/colobot/issues/810
@@ -352,8 +353,8 @@ function loadPath(url) {
 }
 
 function goto(url) {
-	loadPath(url);
-	window.history.pushState(null, null, BASEPATH+"/"+url);
+	loadPath(current_branch+"/"+url);
+	window.history.pushState(null, null, BASEPATH+"/"+current_branch+"/"+url);
 }
 
 function getPath() {
@@ -409,7 +410,7 @@ $(document).ready(function() {
 	<div id="navig">
 		<button id="back" onclick="window.history.go(-1);"></button>
 		<button id="next" onclick="window.history.go(1);"></button>
-		<button id="home" onclick="goto(current_branch+'/cbot')"></button>
+		<button id="home" onclick="goto('cbot')"></button>
 		<select id="language" onchange="changeLang(document.getElementById('language').value);">
 			<option value="en">English</option>
 			<option value="pl">Polish</option>
