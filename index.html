@@ -324,11 +324,11 @@ function processFile(content, translationMap)
 
 function loadFile(category, filename)
 {
-	$.get("https://rawgit.com/colobot/colobot-data/"+current_branch+"/help/"+category+"/E/"+filename).done(function(content) {
+	$.get("https://cdn.jsdelivr.net/gh/colobot/colobot-data@"+current_branch+"/help/"+category+"/E/"+filename).done(function(content) {
 		if (localStorage.lang == "en") {
 				processFile(content, []);
 		} else {
-			$.get("https://rawgit.com/colobot/colobot-data/"+current_branch+"/help/"+category+"/po/"+localStorage.lang+".po").done(function(transContent) {
+			$.get("https://cdn.jsdelivr.net/gh/colobot/colobot-data@"+current_branch+"/help/"+category+"/po/"+localStorage.lang+".po").done(function(transContent) {
 				processFile(content, processTranslations(transContent));
 			});
 		}
